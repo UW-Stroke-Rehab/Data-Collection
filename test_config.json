@@ -1,0 +1,33 @@
+{
+    "Eye Blink": {
+        "options": [
+            {
+                "Option type": "Block",
+                "Explanation": "Continuously blink during block until prompt to relax.",
+                "Relax Time (secs)": 4,
+                "Action Time (secs)": 5,
+                "Loop times": 3
+            }
+        ],
+        "Action Prompt": "Blink"
+    },
+    "Eye Roll": {
+        "options": [
+            {
+                "Option type": "Block",
+                "Explanation": "Continuously roll eyes during block until prompt to relax.",
+                "Relax Time (secs)": 2,
+                "Action Time (secs)": 8,
+                "Loop times": 2
+            },
+            {
+                "Option type": "Single 4 seconds",
+                "Explanation": "Roll eye once at prompt to roll. ",
+                "Relax Time (secs)": 4,
+                "Action Time (secs)": 0,
+                "Loop times": 8
+            }
+        ],
+        "Action Prompt": "Roll"
+    }
+}
