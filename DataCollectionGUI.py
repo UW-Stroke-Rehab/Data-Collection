@@ -120,15 +120,13 @@ class TestSettings:
             label="Create/Delete Tests", command=self.open_test_settings_window
         )
 
-        settings_menu.add_command(label="Change Directory")
-
         # Add the Settings menu to the menubar
         self.menubar.add_cascade(label="Settings", menu=settings_menu)
 
         # Create the help_menu, and add the Help menu to the menubar.
         help_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Help", menu=help_menu)
-    
+
     def load_json(self, filename, dir=None, max_download_attempts=1):
         # Change to directory that contains config file.
         if dir is not None:
@@ -248,6 +246,10 @@ class TestSettings:
         if (test_name not in self.all_tests):
             logging.warning(f"Cannot delete option from non-existing test '{test_name}'.")
 
+        confirmed = messagebox.askyesno("Confirmation", f"Are you sure you want to delete the Option '{option_name}' from the Test '{test_name}'?")
+        if not confirmed:
+            return False
+
         test = self.all_tests[test_name]
         test.delete_option(option_name)
 
@@ -261,6 +263,8 @@ class TestSettings:
             self.show_all_tests()
         else:
             self.show_options(test_name=test_name)
+        
+        return True
 
     # Creates new test. Optionally allows creating the first option.
     def create_new_test(
@@ -292,16 +296,13 @@ class TestSettings:
         # Save updated values into JSON file
         return self.save_to_json()
 
-    def open_test_settings_window(self):
+    def open_test_settings_window(self, width=400, height=600):
         self.test_settings_window = tk.Toplevel(self.root)
+        self.test_settings_window.geometry(f"{width}x{height}")
+        self.test_settings_window.resizable(False, False)  # Make the window non-resizable
 
         canvas = tk.Canvas(self.test_settings_window)
-        scrollbar = tk.Scrollbar(
-            self.test_settings_window, orient="vertical", command=canvas.yview
-        )
-        scrollbar.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
-        canvas.configure(yscrollcommand=scrollbar.set)
 
         content_frame = tk.Frame(canvas)
         canvas.create_window((0, 0), window=content_frame, anchor="nw")
@@ -349,19 +350,13 @@ class TestSettings:
         scrollbar = tk.Scrollbar(bottom_frame, orient=tk.VERTICAL)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         scrollbar.config(command=test_listbox.yview)
+
         test_listbox.config(yscrollcommand=scrollbar.set)
 
+        colors = ["#FFFFFF", "#c8e4f0"]
         for i, test_name in enumerate(self.all_tests):
-            '''
-            option_button = tk.Button(
-                bottom_frame,
-                text=test_name,
-                command=lambda test_name=test_name: self.show_options(test_name=test_name),
-                anchor=tk.W,
-            )
-            option_button.pack(pady=10)
-            '''
             test_listbox.insert(tk.END, test_name)
+            test_listbox.itemconfig(tk.END, bg=colors[i%2])
         
         test_listbox.bind("<<ListboxSelect>>", lambda event: self.on_test_selected(event))
     
@@ -385,105 +380,107 @@ class TestSettings:
         self.clear_frame(content_frame=self.tests_content_frame)
         self.show_test_header(test_name=test_name)
         self.show_test_options(test_name=test_name)
+    
+    def update_prompt(self, test_name: str, new_prompt: str):
+        if new_prompt == '' or test_name not in self.all_tests:
+            return False
+        
+        self.all_tests[test_name].action_prompt = new_prompt
+        return True
 
-    def show_test_header(
-        self, test_name, height=100, header_x_padding=5, header_y_padding=1
-    ):
+    def show_test_header(self, test_name, header_x_padding=5, header_y_padding=1, bg="lightblue"):
         # Create the header frame
-        header_frame = tk.Frame(self.tests_content_frame)
+        header_frame = tk.Frame(self.tests_content_frame, width=200, bg=bg)
         header_frame.pack(fill=tk.X)
 
+        # For sorting sections of the header frame
+        top_frame = tk.Frame(header_frame, bg=bg)
+        middle_frame = tk.Frame(header_frame, bg=bg)
+        bottom_frame = tk.Frame(header_frame, bg=bg) 
+
+        padding = 0.5
+        top_frame.pack(side=tk.TOP, anchor="nw", padx=padding, pady=padding, expand=True)  
+        middle_frame.pack(side=tk.TOP, anchor="s", padx=padding, pady=padding+7, expand=True)  
+        bottom_frame.pack(side=tk.TOP, anchor="s", padx=padding, pady=padding, expand=True)  
+
         # Create a back button to return to all tests
-        back_button = tk.Label(header_frame, text="Back", cursor="hand2")
-        back_button.pack(anchor="nw", padx=header_x_padding, pady=header_y_padding)
-        back_button.bind(
-            "<Button-1>", lambda event: self.show_all_tests()
+        back_button = tk.Label(top_frame, text="Back", cursor="hand2", bg=bg)
+        back_button.pack(side="left")
+        back_button.bind("<Button-1>", lambda event: self.show_all_tests())
+
+        # Add test title
+        test_name_label = tk.Label(top_frame, text=f"'{test_name}' Test", font=("Arial", 12, "bold"), bg=bg)
+        test_name_label.pack(side=tk.LEFT, padx=header_x_padding+60, pady=header_y_padding, expand=True)
+
+        # Create a delete button for the entire test
+        delete_test_button = tk.Label(
+            top_frame,
+            text="Delete entire Test",
+            fg="red", bg=bg,
+            cursor="hand2"
         )
 
-        # print(f"\n\n{test_name}\n\n")
-        details_label = tk.Label(
-            header_frame,
-            text=f"{test_name} Test",
-            font=("Arial", 12, "bold"),
-            anchor="nw",
-        )
-        details_label.pack(anchor="nw", pady=header_y_padding, padx=header_x_padding)
+        delete_test_button.pack(side=tk.RIGHT, anchor="e")
+        delete_test_button.bind("<Button-1>",lambda event: self.delete_test(test=test_name))
 
-        # Create button to create new option for current test
+        # Create the entry and update prompt button
+        self.curr_action_prompt = tk.StringVar()
+        prompt_entry = tk.Entry(middle_frame, textvariable=self.curr_action_prompt, width=15)
+        prompt_entry.insert(tk.END, self.all_tests[test_name].action_prompt)
+        prompt_entry.pack(side=tk.LEFT)
+
+        prompt_button = tk.Button(middle_frame, text='Update Prompt', anchor="nw", command=lambda: self.update_prompt(prompt_entry.get(), test_name))
+        prompt_button.pack(side=tk.LEFT, pady=header_y_padding, padx=header_x_padding)
+
+        # Create button to create a new option for the current test
         new_option_button = tk.Label(
-            header_frame,
+            bottom_frame,
             text="Create new option",
-            fg="green",
+            fg="green", bg=bg,
             cursor="hand2",
         )
 
-        new_option_button.pack(anchor="nw", pady=header_y_padding, padx=header_x_padding)
-
+        new_option_button.pack(side=tk.LEFT, pady=header_y_padding)
         new_option_button.bind(
             "<Button-1>",
             lambda event: self.create_new_option(test_name=test_name),
         )
 
-        # Create a delete button for the enitre test
-        delete_test_button = tk.Label(
-            header_frame,
-            text=f"Delete entire {test_name} test",
-            fg="red",
-            cursor="hand2",
-        )
-        delete_test_button.pack(
-            anchor="nw", pady=header_y_padding, padx=header_x_padding
-        )
-        delete_test_button.bind(
-            "<Button-1>",
-            lambda event: self.delete_test(test=test_name),
-        )
 
-    def show_test_options(self, test_name : str):
+    def show_test_options(self, test_name : str, bg = "#c8e4f0"):
+        width = self.test_settings_window.winfo_width() - 25
+        height = self.test_settings_window.winfo_height()
+
         ##### CREATE scrollable frame for options #####
-        details_frame = tk.Frame(self.tests_content_frame)
+        details_frame = tk.Frame(self.tests_content_frame, width=width, height=height)
         details_frame.pack(fill=tk.BOTH, expand=True)
 
-        details_canvas = tk.Canvas(details_frame)
+        details_canvas = tk.Canvas(details_frame, width=width, height=height)
         details_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        scrollbar = tk.Scrollbar(
-            details_frame, orient=tk.VERTICAL, command=details_canvas.yview
-        )
+        # Scrollbar:
+        scrollbar = tk.Scrollbar(details_frame, orient=tk.VERTICAL, command=details_canvas.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Configure the canvas to use the scrollbar
         details_canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Bind the canvas configuration and mouse wheel events
-        details_canvas.bind(
-            "<Configure>", lambda event: self.bind_scrollable(event, details_canvas)
-        )
+        details_canvas.bind("<Configure>", lambda event: self.bind_scrollable(event, details_canvas))
+        details_canvas.bind_all("<MouseWheel>", lambda event: self.mousewheel_scroll(event, details_canvas))
 
-        details_canvas.bind_all(
-            "<MouseWheel>", lambda event: self.mousewheel_scroll(event, details_canvas)
-        )
-
-        # Create a frame inside the canvas to hold the content
         details_content_frame = tk.Frame(details_canvas)
-        width = self.tests_content_frame.winfo_width()
-        details_content_frame.configure(width=width, height=1000)
+        
+        # Scrollable region
         details_canvas.create_window((0, 0), window=details_content_frame, anchor="nw")
-
-        # Configure the frame to expand when items are added
-        details_content_frame.bind(
-            "<Configure>", lambda event: self.bind_scrollable(event, details_canvas)
-        )
+        details_content_frame.bind("<Configure>", lambda event: self.bind_scrollable(event, details_canvas))
 
         ##### FILL options with details #####
         # Get the details for the selected test
         current_test = self.all_tests[test_name]
 
-        self.add_padding(details_content_frame)
-
         option_frame_width = 150
+        num_options = 0
         # Display each option for the test
-        for i, option_name in enumerate(current_test.options):
+        for _, option_name in enumerate(current_test.options):
+            num_options += 1
             option = current_test.options[option_name]
 
             option_frame = tk.Frame( # Create a frame for each option
@@ -492,7 +489,7 @@ class TestSettings:
                 borderwidth=1,
                 padx=10,
                 pady=10,
-                width=option_frame_width,
+                width=option_frame_width, bg=bg
             )
             option_frame.pack(pady=10, fill="both", expand=True, anchor="w", side="top")
 
@@ -500,7 +497,7 @@ class TestSettings:
                 option_frame,
                 text="X",
                 font=("Arial", 12, "bold"),
-                fg="red",
+                fg="red", bg=bg,
                 cursor="hand2",
             )
 
@@ -512,17 +509,13 @@ class TestSettings:
 
             entries = []
             for label, value in option.get_vals(): # Add each value for the current option. 
-                entry = self.add_box_detail(
-                    option_frame=option_frame,
-                    label=label,
-                    value=value
-                )
+                entry = self.add_box_detail(option_frame=option_frame, label=label, value=value, bg=bg)
                 entries.append(entry)
 
             save_button = tk.Button(
                 option_frame,
                 text="Save",
-                command=lambda opt_index=i: self.save_updated_values(
+                command=lambda opt_index=num_options: self.save_updated_values(
                     test_name=test_name,
                     option_title=entries[0].get(),
                     explanation=entries[1].get(),
@@ -533,7 +526,10 @@ class TestSettings:
             )
             save_button.pack(anchor="n", padx=option_frame_width)
 
-        self.add_padding(details_content_frame, 5)
+        if (num_options > 1):
+            self.add_padding(content_frame=details_content_frame, line_count=5)
+
+        self.add_padding(content_frame=details_content_frame, bg="lightblue", text='END')
 
     # Use entry to update variable values
     def save_updated_values(
@@ -547,12 +543,13 @@ class TestSettings:
         self.save_to_json()
 
     # Insert details for specific option
-    def add_box_detail(self, option_frame, label: str, value, entry_width=40):
+    def add_box_detail(self, option_frame, label: str, value, entry_width=40, bg=None):
         label = tk.Label(
             option_frame,
             text=label,
             wraplength=280,
             justify="left",
+            bg=bg
         )
         label.pack(anchor="w")
 
@@ -568,10 +565,10 @@ class TestSettings:
         return entry
 
     # Helper method: Add extra lines to canvas
-    def add_padding(self, content_frame, line_count=1):
+    def add_padding(self, content_frame, line_count=1, bg=None, text=''):
         for i in range(line_count):
-            space_label = tk.Label(content_frame, text="")
-            space_label.pack(side=tk.TOP)
+            space_label = tk.Label(content_frame, text=text, bg=bg)
+            space_label.pack(side=tk.TOP, expand=True)
 
     # Helper: Update the scrollable region of the canvas
     def bind_scrollable(self, event, details_canvas):
