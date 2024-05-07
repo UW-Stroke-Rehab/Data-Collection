@@ -22,6 +22,8 @@ from pathlib import Path
 import json
 import requests
 
+RELAX_PROMPT = "Relax"
+
 class TestOption:
     def __init__(self, option_name='INIT', explanation='', relax_time=0, action_time=0, loop_times=0):
         self.name = option_name
@@ -120,12 +122,18 @@ class TestSettings:
             label="Create/Delete Tests", command=self.open_test_settings_window
         )
 
-        # Add the Settings menu to the menubar
+        # Settings
         self.menubar.add_cascade(label="Settings", menu=settings_menu)
 
-        # Create the help_menu, and add the Help menu to the menubar.
+        # Instructions (TBD)
+        self.menubar.add_command(label="Instructions", command=self.show_instructions)
+
+        # Help (TDB)
         help_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Help", menu=help_menu)
+    
+    def show_instructions(self):
+        pass
 
     def load_json(self, filename, dir=None, max_download_attempts=1):
         # Change to directory that contains config file.
@@ -232,7 +240,7 @@ class TestSettings:
         loop_times=0,
     ):
         if option_title is None:
-            option_title = f"Opt. {(len(self.all_tests[test_name].options)) + 1}"
+            option_title = f"opt{(len(self.all_tests[test_name].options)) + 1}"
 
         # Udate data structure, then the json file.
         self.all_tests[test_name].add_option(option_name=option_title, explanation=explanation, action_time=action_time, relax_time=relax_time, loop_times=loop_times)
@@ -445,7 +453,6 @@ class TestSettings:
             lambda event: self.create_new_option(test_name=test_name),
         )
 
-
     def show_test_options(self, test_name : str, bg = "#c8e4f0"):
         width = self.test_settings_window.winfo_width() - 25
         height = self.test_settings_window.winfo_height()
@@ -525,10 +532,11 @@ class TestSettings:
             )
             save_button.pack(anchor="n", padx=option_frame_width)
 
+        self.add_padding(content_frame=details_content_frame, bg="lightblue", text='[END]', font=("Arial", 10, "bold"))
+
         if (num_options > 1):
             self.add_padding(content_frame=details_content_frame, line_count=5)
 
-        self.add_padding(content_frame=details_content_frame, bg="lightblue", text='END')
 
     # Use entry to update variable values
     def save_updated_values(self, test_name, option_title, explanation, relax_time, action_time, loop_times):
@@ -566,10 +574,10 @@ class TestSettings:
         return entry
 
     # Helper method: Add extra lines to canvas
-    def add_padding(self, content_frame, line_count=1, bg=None, text=''):
+    def add_padding(self, content_frame, line_count=1, bg=None, text='', font=None):
         for i in range(line_count):
-            space_label = tk.Label(content_frame, text=text, bg=bg)
-            space_label.pack(side=tk.TOP, expand=True)
+            space_label = tk.Label(content_frame, text=text, bg=bg, font=font)
+            space_label.pack(side=tk.TOP, expand=True, fill=tk.X)
 
     # Helper: Update the scrollable region of the canvas
     def bind_scrollable(self, event, details_canvas):
@@ -587,6 +595,8 @@ class TestSettings:
 
 class DataCollectionGUI:
     def __init__(self, dir=None):
+        self.WINDOW_HEADER_BG = '#eaebec'
+
         # File variables:
         self.file_name = '' # Temp
         self.file_extension = ".csv"
@@ -600,25 +610,26 @@ class DataCollectionGUI:
         # Create the GUI
         self.root = tk.Tk()
         self.root.title("EEG Data Experiment and Collection")
+        self.root.configure(bg=self.WINDOW_HEADER_BG)
 
         # Tell the window how to close correctly
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Top frame: Status label and Value Components
-        self.top_frame = tk.Frame(self.root)
+        self.top_frame = tk.Frame(self.root, bg=self.WINDOW_HEADER_BG)
         self.top_frame.pack(side=tk.TOP, padx=10, pady=10)
 
-        self.status_label = tk.Label(self.top_frame, text="Status: ")
+        self.status_label = tk.Label(self.top_frame, text="Status: ", bg=self.WINDOW_HEADER_BG)
         self.status_label.pack(side=tk.LEFT)
 
-        self.status_value = tk.Label(self.top_frame, text="Waiting to begin...")
+        self.status_value = tk.Label(self.top_frame, text="Waiting to begin...", bg=self.WINDOW_HEADER_BG)
         self.status_value.pack(side=tk.LEFT, padx=5)
 
         # Create the Timer
-        self.timer_label = tk.Label(self.top_frame, text="Timer: ")
+        self.timer_label = tk.Label(self.top_frame, text="Timer: ", bg=self.WINDOW_HEADER_BG)
         self.timer_label.pack(side=tk.LEFT)
 
-        self.timer_value = tk.Label(self.top_frame, text="00:00:00")
+        self.timer_value = tk.Label(self.top_frame, text="00:00:00", bg=self.WINDOW_HEADER_BG)
         self.timer_value.pack(side=tk.LEFT, padx=5)
 
         # Start button
@@ -628,14 +639,15 @@ class DataCollectionGUI:
         self.start_button.pack(side=tk.RIGHT, padx=10)
         self.start_button.config(state="disabled") # Can't start before choosing file.
 
-        ### (Middle Frame) Add dropdown boxes ### 
+        # Configure menu bar
         self.testSettings = TestSettings(dir=dir, root=self.root)
 
-        self.middle_frame = tk.Frame(self.root)
+        ### (Middle Frame) Add dropdown boxes ### 
+        self.middle_frame = tk.Frame(self.root, bg=self.WINDOW_HEADER_BG)
         self.middle_frame.pack(side=tk.TOP, padx=10, pady=10)       
 
         # Left dropdown: Select Test:
-        t_label = tk.Label(self.middle_frame, text="Select Experiment Type:")
+        t_label = tk.Label(self.middle_frame, text="Select Experiment Type:", bg=self.WINDOW_HEADER_BG)
         t_label.pack(side=tk.LEFT)
 
         self.t_variable = tk.StringVar()
@@ -651,7 +663,7 @@ class DataCollectionGUI:
         self.test_dropdown.pack(side=tk.LEFT, padx=5)
 
         # Right dropdown: Select Option:
-        opt_label = tk.Label(self.middle_frame, text="Select Timing:")
+        opt_label = tk.Label(self.middle_frame, text="Select Timing:", bg=self.WINDOW_HEADER_BG)
         opt_label.pack(side=tk.LEFT)
 
         self.opt_variable = tk.StringVar()
@@ -664,34 +676,37 @@ class DataCollectionGUI:
         self.t_variable.trace_add("write", self.update_options_dropdown)
 
         ## Bottom Frame ###
-        bottom_frame = tk.Frame(self.root)
+        bottom_frame = tk.Frame(self.root, bg=self.WINDOW_HEADER_BG)
         bottom_frame.pack(side=tk.TOP, padx=10, pady=10)
 
         # File selection:
-        file_label = tk.Label(bottom_frame, text="Enter filename:")
+        file_label = tk.Label(bottom_frame, text="Enter filename:", bg=self.WINDOW_HEADER_BG)
         file_label.pack(side=tk.LEFT)
 
         self.filename_entry = tk.Entry(bottom_frame, width=45)
         self.filename_entry.pack(side=tk.LEFT, padx=5)
         self.filename_entry.bind("<KeyRelease>", self.update_file_entry)
 
-        or_label = tk.Label(bottom_frame, text=" OR:")
+        or_label = tk.Label(bottom_frame, text=" OR:", bg=self.WINDOW_HEADER_BG)
         or_label.pack(side=tk.LEFT)
 
         self.file_button = tk.Button(bottom_frame, text="Open File Explorer", command=lambda: self.save_file_to(dir=dir, filetype='csv'))
         self.file_button.pack(side=tk.RIGHT, padx=5)
 
         ### Main Frame ###
-        self.main_frame = tk.Frame(self.root)
+        self.main_frame = tk.Frame(self.root, bg=self.WINDOW_HEADER_BG)
         self.main_frame.pack(side=tk.TOP, padx=10, pady=10)
 
         # Textbox (with Scrollbar) for diagnostics and output
         self.text_box = scrolledtext.ScrolledText(self.main_frame, width=50, height=20)
         self.text_box.pack(side=tk.LEFT)
 
+        # Always see most current text in textbox (scrolls up when needed)
+        self.text_box.bind('<Key>', lambda event: self.text_box.yview(tk.END))
+
         self.text_box.tag_configure("red", foreground="red")
         self.text_box.tag_configure("black", foreground="black")
-        self.text_box.tag_configure("orange", foreground="orange")
+        self.text_box.tag_configure("orange", foreground="orange red")
         self.text_box.tag_configure("green", foreground="green")
         self.text_box.tag_configure("blue", foreground="blue")
 
@@ -702,8 +717,8 @@ class DataCollectionGUI:
         self.scrollbar.config(command=self.text_box.yview)
 
         # Print first messages to text box
-        self.text_box.insert(tk.END, "Socket not connected.\n", "blue")
-        self.text_box.insert(tk.END, "Enter filename and press Start to begin.\n", "blue")
+        self.insert_text(text_box=self.text_box, txt='Socket not connected.\n', tag='blue')
+        self.insert_text(text_box=self.text_box, txt='Enter filename and press Start to begin.\n', tag='blue')
 
         # Connection variables: 
         self.socket = None
@@ -731,7 +746,9 @@ class DataCollectionGUI:
             9: "Sensor Map",
             10: "Data Rate",
         }
-
+        
+    def scroll_textbox_to_end(self):
+        self.text_box.see(tk.END)
 
     def on_closing(self):
         """
@@ -881,42 +898,50 @@ class DataCollectionGUI:
         self.prompt_dictionary = {}
         last_timestamp = 0
 
-        self.prompt_dictionary[0] = "Relax"
+        self.prompt_dictionary[0] =  RELAX_PROMPT
 
         for i in range(option.loop_times):
             time_till_act = option.relax_time + last_timestamp
             time_till_rest = option.action_time + time_till_act
 
             self.prompt_dictionary[time_till_act] = test.action_prompt
-            self.prompt_dictionary[time_till_rest] = "Relax"
+            self.prompt_dictionary[time_till_rest] = RELAX_PROMPT
 
             last_timestamp = time_till_rest
         
-        self.prompt_dictionary[last_timestamp + option.relax_time] = "Relax"
+        self.prompt_dictionary[last_timestamp + option.relax_time] = RELAX_PROMPT
 
         # Return collection duration
         collection_duration = list(self.prompt_dictionary.keys())[-1]
         return collection_duration
+    
+    def insert_text(self, text_box, txt, tag=''):
+        if not txt.endswith('\n'):
+            txt += '\n'
+
+        text_box.insert(tk.END, txt, tag)
+        text_box.see(tk.END)
 
     def start(self):
         self.set_button_state("disabled")
 
         if not self.socket_running:
             if self.open_socket() == False:
-                self.text_box.insert(tk.END, "Connection Refused!\n ABORTING...\n", "red")
+                self.insert_text(self.text_box, txt='Connection Refused!\n ABORTING...\n', tag='red')
 
                 self.restart()
                 return 
         
             # Clear the Textbox, then add confirmation message. 
             self.text_box.delete("1.0", tk.END)
-            self.text_box.insert(tk.END, "Socket connected.\n\n", "green")
+            self.insert_text(self.text_box, txt='Socket connected.\n\n', tag='green')
  
             # Print file directory:
-            self.text_box.insert(tk.END, f"File Name: ", "black")
-            self.text_box.insert(tk.END, f"{self.file_name}{self.tail}_{self.file_extension}\n", "blue")
-            self.text_box.insert(tk.END, f"File Directory: \n", "black")
-            self.text_box.insert(tk.END, f"{self.file_dir}\n\n", "blue")
+            self.insert_text(self.text_box, txt='File Name: ', tag='black')
+            self.insert_text(self.text_box, txt=f"{self.file_name}{self.tail}_{self.file_extension}\n", tag='blue')
+            self.insert_text(self.text_box, txt=f"File Directory: \n", tag='black')
+            self.insert_text(self.text_box, txt=f"{self.file_dir}\n\n", tag='blue')
+
             self.file = open(self.full_path, "w")
 
             # Timing: @TODO: Replace using a list. 
@@ -934,7 +959,7 @@ class DataCollectionGUI:
             self.socket_running = False
             self.timer_running = False
 
-            self.text_box.insert(tk.END, "Collection ending...\n")
+            self.insert_text(self.text_box, txt='Collection ending...\n')
             self.restart()
 
     def set_button_state(self, state: str):
@@ -973,10 +998,8 @@ class DataCollectionGUI:
         backlog_packet_counter = 0
 
         if (self.last_time_stamp - self.start_time_stamp) < float(self.collection_duration):
-            self.text_box.insert(tk.END, "Capturing Backlog Data from DSI!\n")
-            self.text_box.insert(
-                tk.END, "Do not close window or DSI-Streamer or data will be lost!\n"
-            )
+            self.insert_text(self.text_box, txt='Capturing Backlog Data from DSI!\n')
+            self.insert_text(self.text_box, txt='Do not close the window or the DSI-Streamer, \nor data will be lost!\n', tag='orange')
 
             self.set_button_state("disabled")
 
@@ -991,32 +1014,22 @@ class DataCollectionGUI:
         self.socket.close()
         self.file.close()
 
-        self.text_box.insert(
-            tk.END,
-            "Received {:.2f} seconds of Backlog from DSI!\n".format(
-                self.last_time_stamp - self.backlog_time_stamp
-            ),
-        )
-
-        self.text_box.insert(
-            tk.END, "Collection began at {:.2f} seconds\n".format(self.start_time_stamp)
-        )
-        self.text_box.insert(
-            tk.END, "Backlog began at {:.2f} seconds\n".format(self.backlog_time_stamp)
-        )
-        self.text_box.insert(
-            tk.END, "Backlog ended at {:.2f} seconds\n".format(self.last_time_stamp)
-        )
+        self.insert_text(self.text_box, txt="Received {:.2f} seconds of Backlog from DSI!\n".format(self.last_time_stamp - self.backlog_time_stamp))
+        self.insert_text(self.text_box, txt="Collection began at {:.2f} seconds\n".format(self.start_time_stamp))
+        self.insert_text(self.text_box, txt="Backlog began at {:.2f} seconds\n".format(self.backlog_time_stamp))
+        self.insert_text(self.text_box, txt="Backlog ended at {:.2f} seconds\n".format(self.last_time_stamp))        
 
         self.start_time_stamp = None
         self.last_time_stamp = None
-        self.text_box.insert(tk.END, "Data collection Loop Ending!\n")
+        self.insert_text(self.text_box, txt='Data Collection Loop Ending!\n', tag='green')
 
         self.set_button_state("normal")
         self.start_button.config(state="normal")
         self.start_button.config(text="Start")
 
     def time_loop(self):
+        self.text_box.tag_configure('bg_lightblue', background='#c8e4f0')
+
         while self.timer_running:
             self.seconds += 1
             if self.seconds == 60:
@@ -1026,21 +1039,21 @@ class DataCollectionGUI:
             time_string = "{:02d}:{:02d}".format(self.minutes, self.seconds)
             self.timer_value.config(text=time_string)
 
-            if (
-                self.seconds in self.prompt_dictionary
-                and self.prompt_dictionary[self.seconds] is not None
-            ):
-                self.text_box.insert(
-                    tk.END,
-                    "{:02d}: {}\n".format(
-                        self.seconds, self.prompt_dictionary[self.seconds]
-                    ),
-                )
+            if (self.seconds in self.prompt_dictionary and self.prompt_dictionary[self.seconds] is not None):
+                prompt = self.prompt_dictionary[self.seconds]
+                text = "{:02d}: {}".format(self.seconds, prompt)
+
+                if prompt != RELAX_PROMPT:
+                    bg = 'bg_lightblue'
+                else:
+                    bg = ''
+
+                self.insert_text(self.text_box, txt=text, tag=bg)
 
             time.sleep(1) # second
 
             if self.seconds == self.collection_duration:
-                self.text_box.insert(tk.END, "\nTimer Expired!\n")
+                self.insert_text(text_box=self.text_box, txt='\nTimer Expired!\n')
                 self.start()
 
         self.seconds = 0
@@ -1069,7 +1082,7 @@ class DataCollectionGUI:
         data = self.recvall(12)
 
         if not data:
-            self.text_box.insert(tk.END, "No Data Remaining in Socket!\n")
+            self.insert_text(text_box=self.text_box, txt='No Data Remaining in Socket!\n')
             return False
         
         # Get the Packet Type and the Packet Message Length.
@@ -1079,7 +1092,7 @@ class DataCollectionGUI:
         # Get the Packet Body
         new_data = self.recvall(data_length)
         if not new_data:
-            self.text_box.insert(tk.END, "No Data Remaining in Socket!\n")
+            self.insert_text(text_box=self.text_box, txt='No Data Remaining in Socket!\n')
             return False
         data = data + new_data
 
@@ -1092,10 +1105,10 @@ class DataCollectionGUI:
             else:
                 event_string = "UNKNOWN"
             
-            self.text_box.insert(tk.END, "Event Packet! Type: {}\n".format(event_string))
+            self.insert_text(text_box=self.text_box, txt="Event Packet! Type: {}\n".format(event_string))
 
             if event_code == 2:
-                self.text_box.insert(tk.END, "\nBeginning Collection...\n\n", "green")
+                self.insert_text(text_box=self.text_box, txt='\nBeginning Collection...\n\n', tag='green')
                 self.timer_running = True
                 threading.Thread(target=self.time_loop).start()
 
@@ -1114,9 +1127,9 @@ class DataCollectionGUI:
             self.file.write("\n")
 
         else:
-            self.text_box.insert(tk.END, "Reserved Packet!\n")
+            self.insert_text(textbox=self.text_box, txt='Reserved Packet!\n')
 
         return True
-
+        
 gui = DataCollectionGUI(dir=None)
 gui.root.mainloop()
