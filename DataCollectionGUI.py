@@ -877,25 +877,22 @@ class DataCollectionGUI:
         test = self.testSettings.all_tests[str(self.t_variable.get())]
         option = test.options[str(self.opt_variable.get())] 
 
-        print(f"relax_time = {option.relax_time},  action_time = {option.action_time},  loop_times = {option.loop_times}") 
-
         # Set prompt_dictionary:
         self.prompt_dictionary = {}
         last_timestamp = 0
 
-        self.prompt_dictionary[0] = "Rest"
+        self.prompt_dictionary[0] = "Relax"
 
         for i in range(option.loop_times):
             time_till_act = option.relax_time + last_timestamp
             time_till_rest = option.action_time + time_till_act
 
             self.prompt_dictionary[time_till_act] = test.action_prompt
-            self.prompt_dictionary[time_till_rest] = "Rest"
+            self.prompt_dictionary[time_till_rest] = "Relax"
 
             last_timestamp = time_till_rest
         
-        self.prompt_dictionary[last_timestamp + option.relax_time] = "Rest"
-        print(f"\n{self.prompt_dictionary}") # Delete me
+        self.prompt_dictionary[last_timestamp + option.relax_time] = "Relax"
 
         # Return collection duration
         collection_duration = list(self.prompt_dictionary.keys())[-1]
@@ -981,7 +978,6 @@ class DataCollectionGUI:
                 tk.END, "Do not close window or DSI-Streamer or data will be lost!\n"
             )
 
-            #self.start_button.config(state="disabled")
             self.set_button_state("disabled")
 
         self.backlog_time_stamp = self.last_time_stamp
@@ -1016,7 +1012,6 @@ class DataCollectionGUI:
         self.last_time_stamp = None
         self.text_box.insert(tk.END, "Data collection Loop Ending!\n")
 
-        # self.status_label.config(text="Socket disconnected")
         self.set_button_state("normal")
         self.start_button.config(state="normal")
         self.start_button.config(text="Start")
@@ -1028,7 +1023,6 @@ class DataCollectionGUI:
                 self.seconds = 0
                 self.minutes += 1
 
-            # time_string = "{:02d}:{:02d}".format(self.minutes, self.seconds)
             time_string = "{:02d}:{:02d}".format(self.minutes, self.seconds)
             self.timer_value.config(text=time_string)
 
@@ -1123,10 +1117,6 @@ class DataCollectionGUI:
             self.text_box.insert(tk.END, "Reserved Packet!\n")
 
         return True
-        
-
-#dir="C:/Users/marya/OneDrive/UWB/Misc/Stroke Rehab Project/Connor/Data Collection/Edited_V2"
-dir='C:/Users/marya/OneDrive/UWB/Misc/Stroke Rehab Project/Data Collection 2024'
 
 gui = DataCollectionGUI(dir=None)
 gui.root.mainloop()
