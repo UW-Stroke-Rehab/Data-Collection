@@ -34,9 +34,9 @@ class TestOption:
     def update_vals(self, explanation='', action_time=-1, relax_time=-1, loop_times=-1):
         self.explanation = explanation if explanation != '' else self.explanation
 
-        self.action_time = action_time if action_time >= 0 else self.action_time
-        self.relax_time = relax_time if relax_time >= 0 else self.relax_time
-        self.loop_times = loop_times if loop_times >= 0 else self.loop_times
+        self.action_time = float(action_time) if float(action_time) >= 0 else self.action_time
+        self.relax_time = float(relax_time) if float(relax_time) >= 0 else self.relax_time
+        self.loop_times = int(loop_times) if int(loop_times) >= 0 else self.loop_times
     
     def get_vals(self):
         return [
@@ -207,7 +207,6 @@ class TestSettings:
         
         return True
 
-
     def delete_test(self, test):
         test_name = test if isinstance(test, str) else test.name if isinstance(test, Test) else None
 
@@ -226,21 +225,21 @@ class TestSettings:
     def create_new_option(
         self,
         test_name : str,
-        option_title='TBD',
+        option_title=None,
         explanation='TBD',
-        content_frame=None,
         relax_time=0,
         action_time=0,
         loop_times=0,
     ):
+        if option_title is None:
+            option_title = f"Opt. {(len(self.all_tests[test_name].options)) + 1}"
 
         # Udate data structure, then the json file.
         self.all_tests[test_name].add_option(option_name=option_title, explanation=explanation, action_time=action_time, relax_time=relax_time, loop_times=loop_times)
         self.save_to_json()
 
         # Update screen
-        if content_frame is not None:
-            self.show_options(test_name=test_name)
+        self.show_options(test_name=test_name)
 
     def delete_option(self, test_name, option_name, delete_empty_test=True):
         if (test_name not in self.all_tests):
@@ -363,7 +362,7 @@ class TestSettings:
     def on_add_test(self, event=None):
         test_name = self.new_test_entry.get() 
 
-        if (self.create_new_test(test_name=test_name, option_title='TBD')):
+        if (self.create_new_test(test_name=test_name, option_title="Opt. 1")):
             test_listbox = self.tests_content_frame.winfo_children()[1].winfo_children()[0] 
             test_listbox.insert(tk.END, test_name)
             
@@ -515,13 +514,13 @@ class TestSettings:
             save_button = tk.Button(
                 option_frame,
                 text="Save",
-                command=lambda opt_index=num_options: self.save_updated_values(
+                command=lambda entries=entries, test_name=test_name: self.save_updated_values(
                     test_name=test_name,
-                    option_title=entries[0].get(),
-                    explanation=entries[1].get(),
-                    relax_time=entries[2].get(),
-                    action_time=entries[3].get(),
-                    loop_times=entries[4].get(),
+                    option_title=entries[0].get("1.0", "end-1c"),
+                    explanation=entries[1].get("1.0", "end-1c"),
+                    relax_time=entries[2].get("1.0", "end-1c"),
+                    action_time=entries[3].get("1.0", "end-1c"),
+                    loop_times=entries[4].get("1.0", "end-1c"),
                 ),
             )
             save_button.pack(anchor="n", padx=option_frame_width)
@@ -532,15 +531,17 @@ class TestSettings:
         self.add_padding(content_frame=details_content_frame, bg="lightblue", text='END')
 
     # Use entry to update variable values
-    def save_updated_values(
-        self, test_name, option_title, explanation, relax_time, action_time, loop_times
-    ):
-        self.all_tests[test_name].update_option(option_name=option_title, 
+    def save_updated_values(self, test_name, option_title, explanation, relax_time, action_time, loop_times):
+        updated = self.all_tests[test_name].update_option(option_name=option_title, 
                                                           explanation=explanation, 
                                                           relax_time=relax_time, 
                                                           action_time=action_time, 
                                                           loop_times=loop_times)
-        self.save_to_json()
+        if updated:
+            self.save_to_json()
+
+        else:
+            logging.warning('save_updated_values failed.')
 
     # Insert details for specific option
     def add_box_detail(self, option_frame, label: str, value, entry_width=40, bg=None):
@@ -1122,6 +1123,10 @@ class DataCollectionGUI:
             self.text_box.insert(tk.END, "Reserved Packet!\n")
 
         return True
+        
+
+#dir="C:/Users/marya/OneDrive/UWB/Misc/Stroke Rehab Project/Connor/Data Collection/Edited_V2"
+dir='C:/Users/marya/OneDrive/UWB/Misc/Stroke Rehab Project/Data Collection 2024'
 
 gui = DataCollectionGUI(dir=None)
 gui.root.mainloop()
