@@ -10,9 +10,7 @@ Modified and used with permission.
 # Other versions may not work. 
 
 import tkinter as tk
-from tkinter import scrolledtext, Frame, Menu, filedialog
-from tkinter import ttk
-import tkinter.messagebox as messagebox
+from tkinter import scrolledtext, Frame, Menu, filedialog, messagebox, ttk
 import socket
 import threading
 import time
@@ -143,7 +141,8 @@ class TestSettings:
             try:
                 with open(json_filename, 'r', encoding="utf-8") as file:
                     data = json.load(file)
-
+                
+                self.filename = json_filename
                 return data
 
             except FileNotFoundError:
@@ -183,37 +182,46 @@ class TestSettings:
 
     # Save updated all_tests value into JSON file
     def save_to_json(self):
-        # Convert custom objects to serializable dictionaries
-        serializable_tests = {}
-        for test_name, test in self.all_tests.items():
-            serializable_test = {
-                "Action Prompt": test.action_prompt,
-                "selections": [
-                    {
-                        "Test type": option.name,
-                        "Explanation": option.explanation,
-                        "Relax Time (secs)": option.relax_time,
-                        "Action Time (secs)": option.action_time,
-                        "Loop times": option.loop_times
-                    } for option in test.options.values()
-                ]
-            }
-            serializable_tests[test_name] = serializable_test
+        try:
+            serializable_tests = {} # Custom objects need to be converted to serializable dictionaries.
+            for test_name, test in self.all_tests.items():
+                serializable_test = {
+                    "Action Prompt": test.action_prompt,
+                    "options": [
+                        {
+                            "Option type": option.name,
+                            "Explanation": option.explanation,
+                            "Relax Time (secs)": option.relax_time,
+                            "Action Time (secs)": option.action_time,
+                            "Loop times": option.loop_times
+                        } for option in test.options.values()
+                    ]
+                }
+                serializable_tests[test_name] = serializable_test
 
-        # Save the serializable data to the JSON file
-        with open(self.filename, "w") as f:
-            json.dump(serializable_tests, f)
+            # Save the serializable data to the JSON file
+            with open(self.filename, "w") as f:
+                json.dump(serializable_tests, f, indent=4) 
+
+        except Exception as e:
+            logging.error(f"\n{e}\n\nsave_to_json failed.\n\n")
+            return False
+        
+        return True
 
 
-    def delete_test(self, test, content_frame):
+    def delete_test(self, test):
         test_name = test if isinstance(test, str) else test.name if isinstance(test, Test) else None
 
         if test_name in self.all_tests:
-            del self.all_tests[test_name]
-            self.save_to_json()
+            confirmed = messagebox.askyesno("Confirmation", f"Are you sure you want to delete the Test '{test_name}'?")
 
-            self.show_all_tests(content_frame)
-            return True
+            if confirmed:
+                del self.all_tests[test_name]
+
+                self.save_to_json()
+                self.show_all_tests()
+                return True
         
         return False
 
@@ -234,9 +242,9 @@ class TestSettings:
 
         # Update screen
         if content_frame is not None:
-            self.show_options(test_name=test_name, content_frame=content_frame)
+            self.show_options(test_name=test_name)
 
-    def delete_option(self, test_name, option_name, content_frame, delete_empty_test=True):
+    def delete_option(self, test_name, option_name, delete_empty_test=True):
         if (test_name not in self.all_tests):
             logging.warning(f"Cannot delete option from non-existing test '{test_name}'.")
 
@@ -244,35 +252,45 @@ class TestSettings:
         test.delete_option(option_name)
 
         if test.empty(): # No need to store a test that has no options. 
-            self.delete_test(content_frame=content_frame, test=test_name)
+            self.delete_test(test=test_name)
 
         self.save_to_json()
 
         # Update display
-        if content_frame is not None:
-            if delete_empty_test and test.empty():
-                self.show_all_tests(content_frame=content_frame)
-            else:
-                self.show_options(test_name=test_name, content_frame=content_frame)
+        if delete_empty_test and test.empty():
+            self.show_all_tests()
+        else:
+            self.show_options(test_name=test_name)
 
     # Creates new test. Optionally allows creating the first option.
     def create_new_test(
         self,
-        test_name='New Test',
+        test_name,
+        action_prompt='',
         option_title=None,
         explanation="",
         action_time=0,
         relax_time=0,
         loop_times=0,
-    ):
-        new_test = Test(action_name=test_name)
+    ):        
+        if test_name is None or test_name == '':
+            return False
+
+        if test_name in self.all_tests:
+            logging.warning(f"Cannot create tests with the same name '{test_name}'.")
+            return False
+        
+        if action_prompt == '':
+            action_prompt = test_name
+        
+        new_test = Test(action_name=test_name, action_prompt=action_prompt)
         self.all_tests[test_name] = new_test
 
         if option_title is not None:
-            self.options[option_title] = TestOption(option_name=option_title, explanation=explanation, action_time=action_time, relax_time=relax_time, loop_times=loop_times)
+            self.all_tests[test_name].options[option_title] = TestOption(option_name=option_title, explanation=explanation, action_time=action_time, relax_time=relax_time, loop_times=loop_times)
 
         # Save updated values into JSON file
-        self.save_to_json()
+        return self.save_to_json()
 
     def open_test_settings_window(self):
         self.test_settings_window = tk.Toplevel(self.root)
@@ -292,46 +310,94 @@ class TestSettings:
             lambda event: canvas.configure(scrollregion=canvas.bbox("all")),
         )
 
+        self.tests_content_frame = content_frame
+        self.tests_content_frame.lift()
+
         # Display all options as buttons
-        self.show_all_tests(content_frame)
+        self.show_all_tests()
 
     def clear_frame(self, content_frame):
         # Destroy all child widgets and frames recursively
         for widget in content_frame.winfo_children():
             widget.destroy()
 
-    def show_all_tests(self, content_frame):
-        self.clear_frame(content_frame)
+    def show_all_tests(self):
+        self.clear_frame(self.tests_content_frame)
+
+        # [TOP FRAME] Allow users to create new tests.
+        top_frame = tk.Frame(self.tests_content_frame)
+        top_frame.pack(side=tk.TOP)
+
+        new_test_label = tk.Label(top_frame, text='Enter name for new test: ')
+        new_test_label.pack(side=tk.TOP, anchor=tk.W)
+
+        self.new_test_entry = tk.Entry(top_frame, width=17)
+        self.new_test_entry.pack(side=tk.LEFT, padx=5)
+
+        new_test_save_button = tk.Button(top_frame, text="Add", command=self.on_add_test, bg="lightgreen")
+        new_test_save_button.pack(side=tk.LEFT)
+
+        # [BOTTOM FRAME] Add buttons to allow navigation to each Test.
+        bottom_frame = tk.Frame(self.tests_content_frame)
+        bottom_frame.pack(side=tk.TOP)
+
+        # Create a Listbox widget to hold the test names
+        test_listbox = tk.Listbox(bottom_frame, height=10, width=50)
+        test_listbox.pack(side=tk.LEFT, fill=tk.Y)
+
+        # Create a Scrollbar widget and attach it to the Listbox
+        scrollbar = tk.Scrollbar(bottom_frame, orient=tk.VERTICAL)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        scrollbar.config(command=test_listbox.yview)
+        test_listbox.config(yscrollcommand=scrollbar.set)
 
         for i, test_name in enumerate(self.all_tests):
+            '''
             option_button = tk.Button(
-                content_frame,
+                bottom_frame,
                 text=test_name,
-                command=lambda: 
-                self.show_options(test_name=test_name, content_frame=content_frame
-                ),
-
-                anchor="w",
+                command=lambda test_name=test_name: self.show_options(test_name=test_name),
+                anchor=tk.W,
             )
             option_button.pack(pady=10)
+            '''
+            test_listbox.insert(tk.END, test_name)
+        
+        test_listbox.bind("<<ListboxSelect>>", lambda event: self.on_test_selected(event))
+    
+    def on_add_test(self, event=None):
+        test_name = self.new_test_entry.get() 
 
-    def show_options(self, test_name : str, content_frame):
-        self.clear_frame(content_frame=content_frame)
-        self.show_test_header(test_name=test_name, content_frame=content_frame)
-        self.show_test_options(test_name=test_name, content_frame=content_frame)
+        if (self.create_new_test(test_name=test_name, option_title='TBD')):
+            test_listbox = self.tests_content_frame.winfo_children()[1].winfo_children()[0] 
+            test_listbox.insert(tk.END, test_name)
+            
+            self.new_test_entry.delete(0, tk.END) # Clear entry
+
+    def on_test_selected(self, event):
+        selected_index = event.widget.curselection()
+
+        if selected_index:
+            selected_test_name = event.widget.get(selected_index[0])
+            self.show_options(test_name=selected_test_name)
+
+    def show_options(self, test_name : str):
+        self.clear_frame(content_frame=self.tests_content_frame)
+        self.show_test_header(test_name=test_name)
+        self.show_test_options(test_name=test_name)
 
     def show_test_header(
-        self, test_name, content_frame, height=100, header_x_padding=5, header_y_padding=1
+        self, test_name, height=100, header_x_padding=5, header_y_padding=1
     ):
         # Create the header frame
-        header_frame = tk.Frame(content_frame)
+        header_frame = tk.Frame(self.tests_content_frame)
         header_frame.pack(fill=tk.X)
 
         # Create a back button to return to all tests
         back_button = tk.Label(header_frame, text="Back", cursor="hand2")
         back_button.pack(anchor="nw", padx=header_x_padding, pady=header_y_padding)
         back_button.bind(
-            "<Button-1>", lambda event: self.show_all_tests(content_frame=content_frame)
+            "<Button-1>", lambda event: self.show_all_tests()
         )
 
         # print(f"\n\n{test_name}\n\n")
@@ -350,14 +416,12 @@ class TestSettings:
             fg="green",
             cursor="hand2",
         )
-        new_option_button.pack(
-            anchor="nw", pady=header_y_padding, padx=header_x_padding
-        )
+
+        new_option_button.pack(anchor="nw", pady=header_y_padding, padx=header_x_padding)
+
         new_option_button.bind(
             "<Button-1>",
-            lambda event, content_frame=content_frame: self.create_new_option(
-                content_frame=content_frame
-            ),
+            lambda event: self.create_new_option(test_name=test_name),
         )
 
         # Create a delete button for the enitre test
@@ -372,12 +436,12 @@ class TestSettings:
         )
         delete_test_button.bind(
             "<Button-1>",
-            lambda event: self.delete_test(test=test_name, content_frame=content_frame),
+            lambda event: self.delete_test(test=test_name),
         )
 
-    def show_test_options(self, test_name : str, content_frame):
+    def show_test_options(self, test_name : str):
         ##### CREATE scrollable frame for options #####
-        details_frame = tk.Frame(content_frame)
+        details_frame = tk.Frame(self.tests_content_frame)
         details_frame.pack(fill=tk.BOTH, expand=True)
 
         details_canvas = tk.Canvas(details_frame)
@@ -402,7 +466,7 @@ class TestSettings:
 
         # Create a frame inside the canvas to hold the content
         details_content_frame = tk.Frame(details_canvas)
-        width = content_frame.winfo_width()
+        width = self.tests_content_frame.winfo_width()
         details_content_frame.configure(width=width, height=1000)
         details_canvas.create_window((0, 0), window=details_content_frame, anchor="nw")
 
@@ -443,9 +507,7 @@ class TestSettings:
             delete_option_icon.pack(anchor="ne", pady=1, padx=10)
             delete_option_icon.bind(
                 "<Button-1>",
-                lambda event, option_idx=i, content_frame=content_frame: self.delete_option(
-                    test_name=current_test.name, option_name=option_name, content_frame=content_frame
-                ),
+                lambda event: self.delete_option(test_name=current_test.name, option_name=option_name),
             )
 
             entries = []
@@ -817,8 +879,6 @@ class DataCollectionGUI:
         test = self.testSettings.all_tests[str(self.t_variable.get())]
         option = test.options[str(self.opt_variable.get())] 
 
-        command = test.action_prompt
-
         print(f"relax_time = {option.relax_time},  action_time = {option.action_time},  loop_times = {option.loop_times}") 
 
         # Set prompt_dictionary:
@@ -831,7 +891,7 @@ class DataCollectionGUI:
             time_till_act = option.relax_time + last_timestamp
             time_till_rest = option.action_time + time_till_act
 
-            self.prompt_dictionary[time_till_act] = command
+            self.prompt_dictionary[time_till_act] = test.action_prompt
             self.prompt_dictionary[time_till_rest] = "Rest"
 
             last_timestamp = time_till_rest
@@ -1065,10 +1125,6 @@ class DataCollectionGUI:
             self.text_box.insert(tk.END, "Reserved Packet!\n")
 
         return True
-        
-
-#dir="C:/Users/marya/OneDrive/UWB/Misc/Stroke Rehab Project/Connor/Data Collection/Edited_V2"
-dir='C:/Users/marya/OneDrive/UWB/Misc/Stroke Rehab Project/Data Collection 2024'
 
 gui = DataCollectionGUI(dir=None)
 gui.root.mainloop()
